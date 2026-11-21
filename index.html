@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat message counts</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  #legend span { display: inline-block; margin-right: 12px; }
+  #legend i { display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; }
+  #axis { position: relative; height: 18px; margin-left: 200px; margin-right: 60px; font-size: 12px; }
+  #axis span { position: absolute; transform: translateX(-50%); }
+  .person-row { display: flex; align-items: center; height: 24px; }
+  .person-name { width: 200px; text-align: right; padding-right: 8px; box-sizing: border-box; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+  .person-bar { display: flex; height: 20px; }
+  .segment { height: 20px; line-height: 20px; text-align: center; font-size: 11px; overflow: hidden; white-space: nowrap; box-sizing: border-box; }
+  .person-total { width: 60px; padding-left: 6px; font-size: 12px; }
+  #tooltip { position: fixed; display: none; background: #fff; border: 1px solid #000; padding: 6px 8px; font-size: 13px; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+<h1 id="page-title">Messages per person, by year</h1>
+<p id="page-description">Every message in mltp-general, majors-discussion, minors-discussion and novice-discussion. Each bar is one person's total messages; its color shows the year the messages were sent. The number in a stretch is that person's running total at the end of that year, and the number at the right is their overall total. Hover over a stretch for the details. Export ends <span id="export-ended"></span>. Accounts that were deleted all share one placeholder identity in the export, so they are left out.</p>
+<div id="legend"></div>
+<div id="axis"></div>
+<div id="rows"></div>
+<div id="tooltip"></div>
+<script src="data.js"></script>
+<script>
+var years = ["2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"];
+var colors = { "2019": "#bbbbbb", "2020": "#ff0000", "2021": "#ff9900", "2022": "#ffff00", "2023": "#00ff00", "2024": "#00ffff", "2025": "#9900ff", "2026": "#ff00ff" };
+var darkText = { "2025": true };
+var people = chatCountData.people;
+var maxTotal = people[0].total;
+var rowsElement = document.getElementById("rows");
+var tooltip = document.getElementById("tooltip");
+
+document.getElementById("export-ended").textContent = chatCountData.exportEnded;
+
+var legend = document.getElementById("legend");
+years.forEach(function (year) {
+  var item = document.createElement("span");
+  var swatch = document.createElement("i");
+  swatch.style.background = colors[year];
+  item.appendChild(swatch);
+  item.appendChild(document.createTextNode(year === "2019" ? "2019 and earlier" : year));
+  legend.appendChild(item);
+});
+
+function formatCount(n) { return n.toLocaleString("en-US"); }
+function formatShort(n) { return (n / 1000).toFixed(1) + "k"; }
+
+function showTip(event, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.display = "block";
+  var x = event.clientX + 14, y = event.clientY + 14;
+  if (x + tooltip.offsetWidth > window.innerWidth) x = event.clientX - tooltip.offsetWidth - 14;
+  if (y + tooltip.offsetHeight > window.innerHeight) y = event.clientY - tooltip.offsetHeight - 14;
+  tooltip.style.left = x + "px";
+  tooltip.style.top = y + "px";
+}
+function hideTip() { tooltip.style.display = "none"; }
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function draw() {
+  var barSpace = window.innerWidth - 32 - 200 - 60;
+  var pixelsPerMessage = barSpace / maxTotal;
+  var axis = document.getElementById("axis");
+  axis.innerHTML = "";
+  for (var tick = 0; tick <= maxTotal; tick += 8000) {
+    var label = document.createElement("span");
+    label.textContent = (tick / 1000) + "k";
+    label.style.left = (tick * pixelsPerMessage) + "px";
+    axis.appendChild(label);
+  }
+  rowsElement.innerHTML = "";
+  people.forEach(function (person) {
+    var row = document.createElement("div");
+    row.className = "person-row";
+    var name = document.createElement("div");
+    name.className = "person-name";
+    name.textContent = person.name;
+    name.title = person.user;
+    row.appendChild(name);
+    var bar = document.createElement("div");
+    bar.className = "person-bar";
+    var running = 0;
+    years.forEach(function (year) {
+      var count = person.years[year] || 0;
+      if (!count) return;
+      running += count;
+      var segment = document.createElement("div");
+      segment.className = "segment";
+      var width = count * pixelsPerMessage;
+      segment.style.width = width + "px";
+      segment.style.background = colors[year];
+      if (darkText[year]) segment.style.color = "#fff";
+      if (width >= 38) segment.textContent = formatShort(running);
+      var tip = "<b>" + escapeHtml(person.name) + "</b> (" + escapeHtml(person.user) + ")<br>" +
+        (year === "2019" ? "2019 and earlier" : year) + ": " + formatCount(count) + " messages<br>" +
+        "Running total at end of " + (year === "2019" ? "2019" : year) + ": " + formatCount(running) + "<br>" +
+        "Overall total: " + formatCount(person.total);
+      segment.addEventListener("mousemove", function (event) { showTip(event, tip); });
+      segment.addEventListener("mouseleave", hideTip);
+      bar.appendChild(segment);
+    });
+    row.appendChild(bar);
+    var total = document.createElement("div");
+    total.className = "person-total";
+    total.textContent = formatCount(person.total);
+    row.appendChild(total);
+    rowsElement.appendChild(row);
+  });
+}
+draw();
+window.addEventListener("resize", draw);
+</script>
+</body>
+</html>
