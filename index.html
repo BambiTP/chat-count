@@ -21,22 +21,23 @@
 <body>
 <h1 id="page-title">Messages per person, by year</h1>
 <p id="page-description">Every message in mltp-general, majors-discussion, minors-discussion and novice-discussion. Each bar is one person's total messages; its color shows the year the messages were sent. The number in a stretch is that person's running total at the end of that year, and the number at the right is their overall total. Hover over a stretch for the details. Export ends <span id="export-ended"></span>. Accounts that were deleted all share one placeholder identity in the export, so they are left out.</p>
-<p id="image-link"><a href="chat_chart.png">Image of the top 28 people (down to josephyossi)</a></p>
+<p id="search-area"><label for="search-box">Search by name or username: </label><input id="search-box" type="text"> <span id="search-count"></span></p>
 <div id="legend"></div>
 <div id="axis"></div>
 <div id="rows"></div>
 <div id="tooltip"></div>
-<script src="data.js"></script>
 <script>
 var years = ["2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"];
 var colors = { "2019": "#bbbbbb", "2020": "#ff0000", "2021": "#ff9900", "2022": "#ffff00", "2023": "#00ff00", "2024": "#00ffff", "2025": "#9900ff", "2026": "#ff00ff" };
 var darkText = { "2025": true };
-var people = chatCountData.people;
-var maxTotal = people[0].total;
+var chatCountData = null;
+var people = [];
+var maxTotal = 1;
+var searchBox = document.getElementById("search-box");
+var searchCount = document.getElementById("search-count");
 var rowsElement = document.getElementById("rows");
 var tooltip = document.getElementById("tooltip");
 
-document.getElementById("export-ended").textContent = chatCountData.exportEnded;
 
 var legend = document.getElementById("legend");
 years.forEach(function (year) {
@@ -78,12 +79,16 @@ function draw() {
     axis.appendChild(label);
   }
   rowsElement.innerHTML = "";
+  var query = searchBox.value.trim().toLowerCase();
+  var shown = 0;
   people.forEach(function (person) {
+    if (query && (person.name + " " + person.user).toLowerCase().indexOf(query) === -1) return;
+    shown++;
     var row = document.createElement("div");
     row.className = "person-row";
     var name = document.createElement("div");
     name.className = "person-name";
-    name.textContent = person.name;
+    name.textContent = person.rank + ". " + person.name;
     name.title = person.user;
     row.appendChild(name);
     var bar = document.createElement("div");
@@ -115,9 +120,18 @@ function draw() {
     row.appendChild(total);
     rowsElement.appendChild(row);
   });
+  searchCount.textContent = shown + " of " + people.length + " people";
 }
-draw();
-window.addEventListener("resize", draw);
+fetch("data.json").then(function (response) { return response.json(); }).then(function (data) {
+  chatCountData = data;
+  people = data.people;
+  people.forEach(function (person, index) { person.rank = index + 1; });
+  maxTotal = people[0].total;
+  document.getElementById("export-ended").textContent = data.exportEnded;
+  draw();
+});
+searchBox.addEventListener("input", draw);
+window.addEventListener("resize", function () { if (people.length) draw(); });
 </script>
 </body>
 </html>
